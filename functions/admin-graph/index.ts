@@ -9,7 +9,7 @@ declare const Deno: any;
 const createAdminClient = () => {
     return createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '',
+      Deno.env.get('SERVICE_ROLE_KEY') ?? '', // FIX: Changed secret name to comply with Supabase policy.
       { auth: { autoRefreshToken: false, persistSession: false } }
     );
 };

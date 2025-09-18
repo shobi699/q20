@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../hooks/useAuth';
 import { supabase } from '../lib/supabase/client';
 import { Game } from '../types';
+import { Link } from 'react-router-dom';
 
 const ProfilePage: React.FC = () => {
     const { user, profile, refetchProfile } = useAuth();
@@ -83,13 +84,10 @@ const ProfilePage: React.FC = () => {
         setLoading(false);
     };
 
-    if (!profile) {
-        return <div className="text-center p-8">در حال بارگذاری پروفایل...</div>;
-    }
-
     return (
-        <div className="max-w-2xl mx-auto py-8 px-4">
-            <div className="bg-surface rounded-xl shadow-lg p-8">
+        <div className="max-w-5xl mx-auto py-8 px-4 grid grid-cols-1 lg:grid-cols-5 gap-8 items-start">
+            {/* Profile Card */}
+            <div className="bg-surface rounded-xl shadow-lg p-8 lg:col-span-2">
                 <h1 className="text-3xl font-bold text-center mb-6 text-primary">پروفایل کاربری</h1>
                 <form onSubmit={handleSubmit} className="space-y-6">
                     <div>
@@ -127,7 +125,7 @@ const ProfilePage: React.FC = () => {
                     <div>
                         <button
                             type="submit"
-                            disabled={loading || username === profile.username}
+                            disabled={loading || (profile && username === profile.username)}
                             className="w-full py-3 px-4 bg-primary text-on-primary font-bold rounded-md hover:bg-primary-variant disabled:bg-gray-500 disabled:cursor-not-allowed transition-colors"
                         >
                             {loading ? 'در حال ذخیره...' : 'ذخیره تغییرات'}
@@ -136,7 +134,8 @@ const ProfilePage: React.FC = () => {
                 </form>
             </div>
 
-            <div className="bg-surface rounded-xl shadow-lg p-8 mt-8">
+            {/* Game History Card */}
+            <div className="bg-surface rounded-xl shadow-lg p-8 lg:col-span-3">
                 <h2 className="text-2xl font-bold text-center mb-6 text-primary">تاریخچه بازی‌ها</h2>
                 {historyLoading ? (
                      <div className="text-center">

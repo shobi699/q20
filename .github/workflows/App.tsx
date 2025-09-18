@@ -1,10 +1,38 @@
-import React, { useEffect } from 'react';
-// FIX: Switched to react-router-dom v6/v7 imports and syntax.
-import { HashRouter, Routes, Route, Link, Navigate } from 'react-router-dom';
+import React from 'react';
+import { HashRouter, Routes, Route, Link } from 'react-router-dom';
 import { AuthProvider, useAuth } from '../../hooks/useAuth';
 import HomePage from '../../pages/HomePage';
 import PlayPage from '../../pages/PlayPage';
-import AdminPage from '../../pages/admin/AdminPage';
+import LeaderboardPage from '../../pages/LeaderboardPage';
+import ProfilePage from '../../pages/ProfilePage';
+
+const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+    const { user, loading } = useAuth();
+
+    return (
+        <div className="relative">
+            {children}
+            {(loading || !user) && (
+                <div className="absolute inset-0 bg-background/95 backdrop-blur-sm flex flex-col items-center justify-center z-50">
+                    {loading ? (
+                        <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-primary"></div>
+                    ) : (
+                        <div className="text-center p-8 bg-surface rounded-lg shadow-xl animate-fade-in max-w-md">
+                            <h2 className="text-3xl font-bold text-primary mb-4">دسترسی نیازمند ورود است</h2>
+                            <p className="text-on-surface/80 mb-6">
+                                برای مشاهده این صفحه، لطفا ابتدا وارد حساب کاربری خود شوید.
+                            </p>
+                            <Link to="/" className="py-2 px-6 bg-secondary text-on-secondary font-bold rounded-md hover:opacity-90 transition-opacity">
+                                رفتن به صفحه ورود
+                            </Link>
+                        </div>
+                    )}
+                </div>
+            )}
+        </div>
+    );
+};
+
 
 const App: React.FC = () => {
   return (
@@ -13,11 +41,10 @@ const App: React.FC = () => {
         <div className="min-h-screen flex flex-col">
           <Header />
           <main className="flex-grow container mx-auto p-4">
-            {/* FIX: Replaced v5 <Switch> with v6 <Routes> and updated Route syntax. */}
             <Routes>
               <Route path="/play" element={<ProtectedRoute><PlayPage /></ProtectedRoute>} />
-              {/* FIX: Added wildcard '*' to support nested routes in AdminPage. */}
-              <Route path="/admin/*" element={<AdminRoute><AdminPage /></AdminRoute>} />
+              <Route path="/leaderboard" element={<ProtectedRoute><LeaderboardPage /></ProtectedRoute>} />
+              <Route path="/profile" element={<ProtectedRoute><ProfilePage /></ProtectedRoute>} />
               <Route path="/" element={<HomePage />} />
             </Routes>
           </main>
@@ -29,55 +56,26 @@ const App: React.FC = () => {
 
 const Header: React.FC = () => {
   const { user, profile, signOut } = useAuth();
-  const isAnonymous = user?.is_anonymous;
-
-  const handleGuestLoginClick = async () => {
-    await signOut();
-  }
-
+  
   return (
     <header className="bg-surface shadow-md">
       <nav className="container mx-auto px-4 py-3 flex justify-between items-center">
         <Link to="/" className="text-xl font-bold text-primary">بازی زنجیرهٔ خلاقیت</Link>
         <div className="flex items-center gap-4">
-          {user && <Link to="/play" className="hover:text-secondary">بازی</Link>}
-          {profile?.is_admin && <Link to="/admin" className="hover:text-secondary">پنل مدیریت</Link>}
+          <Link to="/play" className="hover:text-secondary">بازی</Link>
+          <Link to="/leaderboard" className="hover:text-secondary">جدول امتیازات</Link>
           {user ? (
-            isAnonymous ? (
-              <button onClick={handleGuestLoginClick} className="hover:text-secondary">ورود / ثبت‌نام</button>
-            ) : (
-              <button onClick={signOut} className="bg-error text-on-primary px-3 py-1 rounded">خروج</button>
-            )
+            <>
+              <Link to="/profile" className="hover:text-secondary">{profile?.username || 'پروفایل'}</Link>
+              <button onClick={signOut} className="hover:text-error">خروج</button>
+            </>
           ) : (
-            <Link to="/" className="hover:text-secondary">ورود</Link>
+             <Link to="/" className="bg-primary text-on-primary px-3 py-1 rounded-md text-sm">ورود / ثبت‌نام</Link>
           )}
         </div>
       </nav>
     </header>
   );
 };
-
-const ProtectedRoute = ({ children }: { children: JSX.Element }) => {
-  const { user, loading } = useAuth();
-  if (loading) return <div className="text-center p-8">در حال بارگذاری...</div>;
-  // FIX: Replaced v5 programmatic navigation (useHistory) with the v6 declarative <Navigate> component.
-  if (!user) return <Navigate to="/" />;
-  return children;
-};
-
-const AdminRoute = ({ children }: { children: JSX.Element }) => {
-    const { profile, loading } = useAuth();
-    if (loading) return <div className="text-center p-8">در حال بارگذاری...</div>;
-    if (!profile?.is_admin) {
-        return (
-            <div className="text-center p-8">
-                <h1 className="text-3xl text-error font-bold">403 - Forbidden</h1>
-                <p className="mt-4">شما دسترسی لازم برای مشاهده این صفحه را ندارید.</p>
-            </div>
-        )
-    };
-    return children;
-};
-
 
 export default App;

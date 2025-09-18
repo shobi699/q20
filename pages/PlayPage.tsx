@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from '../hooks/useAuth';
 import { validateAnswer, logAnswerAndGetCount } from '../services/api';
+import { Link } from 'react-router-dom';
 
 const HeartIcon: React.FC<{ filled: boolean }> = ({ filled }) => (
   <svg xmlns="http://www.w3.org/2000/svg" className={`h-8 w-8 transition-all duration-300 ${filled ? 'text-red-500' : 'text-on-surface/20'}`} viewBox="0 0 20 20" fill="currentColor">
@@ -10,31 +11,26 @@ const HeartIcon: React.FC<{ filled: boolean }> = ({ filled }) => (
 
 
 const PlayPage: React.FC = () => {
-  const { user } = useAuth();
   const [gameState, setGameState] = useState<'idle' | 'playing' | 'submitting' | 'feedback' | 'gameOver'>('idle');
-  const [currentWord, setCurrentWord] = useState('ابر');
+  const [currentWord, setCurrentWord] = useState('کاغذ');
   const [answer, setAnswer] = useState('');
   const [lives, setLives] = useState(3);
   const [score, setScore] = useState(0);
-  const [turn, setTurn] = useState(1);
+  const [turn, setTurn] = useState(1); // Represents chain length
   const [timeLeft, setTimeLeft] = useState(15);
-  const [feedback, setFeedback] = useState<{ message: string; isCorrect: boolean; count?: number } | null>(null);
+  const [feedback, setFeedback] = useState<{ message: string; isCorrect: boolean; count?: number, stepScore?: number } | null>(null);
+  const [serverError, setServerError] = useState<string | null>(null);
 
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  const MAX_TURNS = 20;
   const TIME_LIMIT = 15;
 
   const proceedToNextTurn = (nextWord: string) => {
     setTurn(prev => prev + 1);
-    if (turn + 1 > MAX_TURNS) {
-      setGameState('gameOver');
-      return;
-    }
     setCurrentWord(nextWord);
     setAnswer('');
     setGameState('feedback');
-    setTimeout(() => setGameState(currentGameState => currentGameState === 'gameOver' ? 'gameOver' : 'playing'), 3000);
+    setTimeout(() => setGameState(currentGameState => currentGameState === 'gameOver' ? 'gameOver' : 'playing'), 4000); // Longer feedback time
   }
   
   const handleIncorrectAnswer = (message: string) => {
@@ -84,9 +80,10 @@ const PlayPage: React.FC = () => {
     setLives(3);
     setScore(0);
     setTurn(1);
-    setCurrentWord('ابر');
+    setCurrentWord('کاغذ'); // Starting word from game design
     setFeedback(null);
     setAnswer('');
+    setServerError(null);
     setGameState('playing');
   };
 
@@ -97,6 +94,7 @@ const PlayPage: React.FC = () => {
     if (timerRef.current) clearInterval(timerRef.current);
     setGameState('submitting');
     setFeedback(null);
+    setServerError(null);
 
     try {
       const result = await validateAnswer({
@@ -110,15 +108,23 @@ const PlayPage: React.FC = () => {
             answerWord: answer.trim(),
         });
 
-        setScore(prev => prev + 1);
-        setFeedback({ message: result.reason, isCorrect: true, count: count || 1 });
+        // New Scoring Formula
+        const rarityScore = 100 * (1 / Math.log10(count + 1) + 1); // Rarity: Higher score for lower count
+        const chainMultiplier = 1.12 ** (turn - 1); // Chain Bonus
+        const speedMultiplier = 1 + Math.min(0.25, Math.max(0, (timeLeft - (TIME_LIMIT / 2)) * 0.05)); // Speed Bonus for being faster than 7.5s
+        
+        const stepScore = Math.round(rarityScore * chainMultiplier * speedMultiplier);
+        
+        setScore(prev => prev + stepScore);
+        setFeedback({ message: result.reason, isCorrect: true, count: count || 1, stepScore });
         proceedToNextTurn(answer.trim());
       } else {
         handleIncorrectAnswer(result.reason);
       }
     } catch (err: any) {
       console.error("Error validating answer:", err);
-      handleIncorrectAnswer('خطا در ارتباط با سرور');
+      setServerError('خطا در ارتباط با سرور. لطفا دوباره تلاش کنید.');
+      setGameState('playing'); // Allow user to retry
     }
   };
   
@@ -127,7 +133,7 @@ const PlayPage: React.FC = () => {
       <div className="text-center p-8 flex flex-col items-center justify-center min-h-[400px]">
         <h1 className="text-4xl font-bold text-primary mb-4">آماده‌ی چالش هستی؟</h1>
         <p className="text-on-surface/80 mb-8 max-w-md">
-          زنجیره را ادامه بده! برای هر کلمه، یک کلمه مرتبط در ۱۵ ثانیه بگو. ۳ بار خطا کنی، می‌بازی.
+         زنجیره را ادامه بده! برای هر کلمه، یک «نابودگر» در ۱۵ ثانیه بگو. ۳ بار خطا کنی، می‌بازی. پاسخ‌های کمیاب امتیاز بیشتری دارند!
         </p>
         <button onClick={handleStartGame} className="py-3 px-8 bg-secondary text-on-secondary font-bold text-lg rounded-md hover:opacity-90 transition-opacity">
           شروع بازی
@@ -142,7 +148,8 @@ const PlayPage: React.FC = () => {
           <h2 className="text-4xl font-bold text-primary mb-2">بازی تمام شد!</h2>
           <div className="my-4">
               <p className="text-lg text-on-surface/80">امتیاز نهایی شما</p>
-              <p className="text-6xl font-bold text-secondary tracking-tight">{score}</p>
+              <p className="text-6xl font-bold text-secondary tracking-tight">{score.toLocaleString('fa-IR')}</p>
+              <p className="mt-2 text-on-surface/70">طول زنجیره: {turn - 1}</p>
           </div>
           <button onClick={handleStartGame} className="mt-6 py-3 px-8 bg-secondary text-on-secondary font-bold text-lg rounded-md hover:opacity-90 transition-opacity">
             بازی دوباره
@@ -159,8 +166,8 @@ const PlayPage: React.FC = () => {
           {Array.from({ length: 3 }).map((_, i) => <HeartIcon key={i} filled={i < lives} />)}
         </div>
         <div className="text-center">
-            <h2 className="text-xl">امتیاز: <span className="font-bold text-primary">{score}</span></h2>
-            <h3 className="text-lg">مرحله: <span className="font-bold text-secondary">{turn} / {MAX_TURNS}</span></h3>
+            <h2 className="text-xl">امتیاز: <span className="font-bold text-primary">{score.toLocaleString('fa-IR')}</span></h2>
+            <h3 className="text-lg">طول زنجیره: <span className="font-bold text-secondary">{turn}</span></h3>
         </div>
       </div>
 
@@ -171,8 +178,7 @@ const PlayPage: React.FC = () => {
 
       {/* Game Content */}
       <div className="my-8 text-center min-h-[150px]">
-        <p className="text-on-surface/70 mb-2">کلمه شما</p>
-        <h1 className="text-5xl font-bold tracking-wider animate-fade-in">{currentWord}</h1>
+        <p className="text-on-surface/70 mb-2 text-xl">«<span className="font-bold text-2xl text-on-surface">{currentWord}</span>» را با چی نابود می‌کنی؟</p>
       </div>
 
       {/* Form */}
@@ -181,7 +187,7 @@ const PlayPage: React.FC = () => {
               type="text"
               value={answer}
               onChange={(e) => setAnswer(e.target.value)}
-              placeholder="کلمه مرتبط را وارد کنید..."
+              placeholder="پاسخ خود را وارد کنید..."
               className="w-full bg-background border border-on-surface/20 rounded-md p-4 text-2xl text-center focus:ring-2 focus:ring-primary focus:outline-none"
               disabled={gameState !== 'playing'}
               autoFocus
@@ -195,19 +201,35 @@ const PlayPage: React.FC = () => {
           </button>
       </form>
       
+      {/* Server Error Message */}
+      {serverError && (
+        <div className="mt-4 p-3 rounded-md text-center bg-error/20 text-error font-bold">
+          {serverError}
+        </div>
+      )}
+
       {/* Submitting/Feedback Overlay */}
        {(gameState === 'submitting' || gameState === 'feedback') && (
-         <div className="mt-6 text-center min-h-[80px]">
+         <div className="mt-6 text-center min-h-[100px]">
           {gameState === 'submitting' ? (
              <div className="flex flex-col items-center justify-center">
                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
-                <p className="mt-4">در حال بررسی ...</p>
+                <p className="mt-4">در حال داوری ...</p>
              </div>
           ) : feedback && (
             <div className={`p-4 rounded-md text-center animate-fade-in ${feedback.isCorrect ? 'bg-green-500/20 text-green-400' : 'bg-error/20 text-error'}`}>
               <p className="font-bold">{feedback.message}</p>
-              {feedback.isCorrect && feedback.count && feedback.count > 1 && (
-                  <p className="text-sm mt-1">{feedback.count - 1} نفر دیگر هم همین پاسخ را داده‌اند!</p>
+              {feedback.isCorrect && feedback.count !== undefined && (
+                  <div className="mt-2 text-sm">
+                    <p>
+                        <span className="font-bold text-secondary text-lg">+{feedback.stepScore?.toLocaleString('fa-IR')}</span> امتیاز
+                    </p>
+                    {feedback.count === 1 ? (
+                        <p className="font-bold text-yellow-300 animate-pulse">تو خاصی! اولین نفری هستی که این پاسخ را داده!</p>
+                    ) : (
+                        <p className="text-on-surface/70">{feedback.count - 1} نفر دیگر هم همین پاسخ را داده‌اند.</p>
+                    )}
+                  </div>
               )}
             </div>
           )}
