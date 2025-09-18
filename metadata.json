@@ -1,0 +1,5 @@
+{
+  "name": "Creative Chain Game",
+  "description": "A full-stack Next.js (emulated in React) and Supabase application for a word association game. Includes a user-facing game and a comprehensive admin panel with strict RLS, Edge Functions, and more.",
+  "requestFramePermissions": []
+}
